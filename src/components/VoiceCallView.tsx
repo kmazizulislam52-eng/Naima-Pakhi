@@ -11,6 +11,8 @@ import {
   MessageSquare,
   RefreshCw,
   AlertCircle,
+  Radio,
+  Globe,
 } from 'lucide-react';
 import { UserSettings, ChatMessage } from '../types';
 import { playGeminiPCM, speakWithBrowser, stopAllAudio, setSpeakerMute } from '../utils/audio';
@@ -31,24 +33,24 @@ export const VoiceCallView: React.FC<VoiceCallViewProps> = ({
   onAddHistoryMessage,
   hasGeminiKey,
 }) => {
-  // Call status
+  // Call status phases: 'calling' | 'connected' | 'speaking' | 'listening'
+  const [callPhase, setCallPhase] = useState<'calling' | 'connected' | 'speaking' | 'listening'>('calling');
   const [callDuration, setCallDuration] = useState(0);
-  const [callPhase, setCallPhase] = useState<'connecting' | 'connected' | 'speaking' | 'listening'>('connecting');
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isSpeakerMuted, setIsSpeakerMuted] = useState(false);
-  const [currentSubtitle, setCurrentSubtitle] = useState('Connecting to Naima...');
+  const [currentSubtitle, setCurrentSubtitle] = useState('Naima is calling...');
   const [lastUserSpeech, setLastUserSpeech] = useState('');
+  const [detectedLang, setDetectedLang] = useState<string>('Bangla');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showTextInput, setShowTextInput] = useState(false);
   const [manualInput, setManualInput] = useState('');
   const [isProcessingTurn, setIsProcessingTurn] = useState(false);
-  const [micPermissionDenied, setMicPermissionDenied] = useState(false);
+  const [connectionNote, setConnectionNote] = useState('Connecting to Gemini Live Voice...');
 
   // References
   const timerRef = useRef<any>(null);
   const recognizerRef = useRef<SpeechRecognizer | null>(null);
   const isMountedRef = useRef(true);
-  const speechTimeoutRef = useRef<any>(null);
 
   // Format call timer
   const formatTimer = (seconds: number) => {
@@ -57,28 +59,35 @@ export const VoiceCallView: React.FC<VoiceCallViewProps> = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Start call timer
+  // Start call lifecycle
   useEffect(() => {
     isMountedRef.current = true;
 
-    // Connect after 1.5s
-    const connectTimeout = setTimeout(() => {
-      if (isMountedRef.current) {
-        setCallPhase('connected');
-        // Initial greeting turn from Naima
-        triggerNaimaTurn('Jaan, tumi call korecho! Koto khushi lagche amar... Bolo na, kemon acho aajke?');
-      }
-    }, 1200);
+    // Phase 1: "Naima is calling..." ring state for 1.8s
+    setCurrentSubtitle('Naima is calling...');
+    setConnectionNote('Ringing... Establishing Gemini Live Voice stream');
 
+    const connectTimer = setTimeout(() => {
+      if (!isMountedRef.current) return;
+      setCallPhase('connected');
+      setConnectionNote('Connected · Gemini Live Audio');
+
+      // Initial spoken greeting turn from Naima
+      const greetingText = `Assalamu alaikum ${settings.nickname || 'jaan'}! Tumi call korecho, koto bhalo lagche... Bolo na, kemon acho? 💕`;
+      triggerNaimaTurn(greetingText);
+    }, 1800);
+
+    // Call duration timer starts once connected
     timerRef.current = setInterval(() => {
-      setCallDuration((prev) => prev + 1);
+      if (isMountedRef.current) {
+        setCallDuration((prev) => prev + 1);
+      }
     }, 1000);
 
     return () => {
       isMountedRef.current = false;
       if (timerRef.current) clearInterval(timerRef.current);
-      clearTimeout(connectTimeout);
-      if (speechTimeoutRef.current) clearTimeout(speechTimeoutRef.current);
+      clearTimeout(connectTimer);
       stopAllAudio();
       if (recognizerRef.current) {
         recognizerRef.current.stop();
@@ -91,16 +100,17 @@ export const VoiceCallView: React.FC<VoiceCallViewProps> = ({
     setSpeakerMute(isSpeakerMuted);
   }, [isSpeakerMuted]);
 
-  // Start listening to the user via microphone
+  // Start listening to the user via microphone (Hands-free continuous loop)
   const startListening = () => {
-    if (isMicMuted) return;
+    if (isMicMuted || !isMountedRef.current) return;
 
     if (!recognizerRef.current) {
       recognizerRef.current = new SpeechRecognizer();
     }
 
+    recognizerRef.current.setLanguage(settings.languagePreference);
+
     if (!recognizerRef.current.isSupported()) {
-      // If browser doesn't support Web Speech API, prompt user to use typed speech or fallback
       setCurrentSubtitle('Mic listening active (Web Speech not supported in this browser, you can type below)');
       setShowTextInput(true);
       return;
@@ -109,32 +119,25 @@ export const VoiceCallView: React.FC<VoiceCallViewProps> = ({
     try {
       setCallPhase('listening');
       recognizerRef.current.start({
-        onResult: (text: string, isFinal: boolean) => {
+        onResult: (text: string) => {
           if (!isMountedRef.current) return;
           setLastUserSpeech(text);
-
-          // Clear any pending debounce
-          if (speechTimeoutRef.current) clearTimeout(speechTimeoutRef.current);
-
-          // If speech is final or user paused for 1.2s, trigger Naima's response
-          if (isFinal) {
-            handleUserSpoke(text);
-          } else {
-            speechTimeoutRef.current = setTimeout(() => {
-              handleUserSpoke(text);
-            }, 1400);
-          }
+          setCurrentSubtitle(`You: "${text}"`);
+        },
+        // Triggered automatically when user pauses speech for ~1.3s or finishes sentence!
+        onUtteranceComplete: (completedSpeech: string) => {
+          if (!isMountedRef.current || !completedSpeech.trim()) return;
+          handleUserSpoke(completedSpeech);
         },
         onError: (err: any) => {
           if (err === 'not-allowed' || err === 'permission-denied') {
-            setMicPermissionDenied(true);
-            setErrorMessage('Microphone access was denied. You can speak by typing below.');
+            setErrorMessage('Microphone access was denied. You can still talk by typing below.');
             setShowTextInput(true);
           }
         },
       });
     } catch (e) {
-      console.warn('Recognition start issue:', e);
+      console.warn('Recognition start exception:', e);
     }
   };
 
@@ -145,15 +148,16 @@ export const VoiceCallView: React.FC<VoiceCallViewProps> = ({
     }
   };
 
-  // Called when user finished a speech utterance
+  // Called when user finished speaking an utterance
   const handleUserSpoke = async (spokenText: string) => {
     const clean = spokenText.trim();
     if (!clean || isProcessingTurn) return;
 
     pauseListening();
     setIsProcessingTurn(true);
+    setCurrentSubtitle(`You: "${clean}"`);
 
-    // Record message into history
+    // Record user message into history
     const userMsg: ChatMessage = {
       id: `call-user-${Date.now()}`,
       sender: 'user',
@@ -161,8 +165,6 @@ export const VoiceCallView: React.FC<VoiceCallViewProps> = ({
       timestamp: Date.now(),
     };
     onAddHistoryMessage(userMsg);
-
-    setCurrentSubtitle(`You: "${clean}"`);
 
     try {
       // Call Gemini backend for Voice turn
@@ -188,6 +190,10 @@ export const VoiceCallView: React.FC<VoiceCallViewProps> = ({
       const data = await res.json();
       const replyText = data.replyText || 'Ami shunte peyechi jaan!';
       const audioBase64 = data.audioBase64;
+      const detected = data.detectedLanguage || 'Bangla';
+      const langCode = data.languageCode;
+
+      setDetectedLang(detected);
 
       const naimaMsg: ChatMessage = {
         id: `call-naima-${Date.now()}`,
@@ -195,14 +201,15 @@ export const VoiceCallView: React.FC<VoiceCallViewProps> = ({
         text: replyText,
         timestamp: Date.now(),
         audioBase64,
+        detectedLanguage: detected,
       };
       onAddHistoryMessage(naimaMsg);
 
       // Play audio response from Naima
-      await playNaimaSpokenResponse(replyText, audioBase64);
+      await playNaimaSpokenResponse(replyText, audioBase64, langCode);
     } catch (err: any) {
       console.error('Call turn error:', err);
-      const fallbackReply = 'Jaan, tomar voice ektu kete jacche... Abar ektu bolo na? 💕';
+      const fallbackReply = 'Jaan, tomar kotha ektu kete gechilo... Abar bolo na please? 💕';
       await playNaimaSpokenResponse(fallbackReply, null);
     } finally {
       setIsProcessingTurn(false);
@@ -211,7 +218,11 @@ export const VoiceCallView: React.FC<VoiceCallViewProps> = ({
   };
 
   // Play Naima's spoken voice and update subtitles
-  const playNaimaSpokenResponse = async (text: string, audioBase64: string | null) => {
+  const playNaimaSpokenResponse = async (
+    text: string,
+    audioBase64: string | null,
+    langCode?: string
+  ) => {
     if (!isMountedRef.current) return;
     setCallPhase('speaking');
     setCurrentSubtitle(text);
@@ -223,24 +234,25 @@ export const VoiceCallView: React.FC<VoiceCallViewProps> = ({
           onEnded: () => {
             if (isMountedRef.current) {
               setCallPhase('listening');
-              setCurrentSubtitle('Naima is listening to you...');
+              setCurrentSubtitle('Naima is listening to you... (Speak naturally)');
               startListening();
             }
           },
         });
         return;
       } catch (e) {
-        console.warn('Gemini PCM playback failed, falling back to browser speech:', e);
+        console.warn('Gemini PCM playback note, falling back to browser speech:', e);
       }
     }
 
-    // Fallback Web Speech Synthesis
+    // Fallback natural female browser speech for non-PCM scenarios
     speakWithBrowser(text, {
       isSpeakerMuted,
+      langCode,
       onEnded: () => {
         if (isMountedRef.current) {
           setCallPhase('listening');
-          setCurrentSubtitle('Naima is listening to you...');
+          setCurrentSubtitle('Naima is listening to you... (Speak naturally)');
           startListening();
         }
       },
@@ -254,6 +266,7 @@ export const VoiceCallView: React.FC<VoiceCallViewProps> = ({
       sender: 'naima',
       text: initialText,
       timestamp: Date.now(),
+      detectedLanguage: 'Bangla',
     };
     onAddHistoryMessage(naimaMsg);
     playNaimaSpokenResponse(initialText, null);
@@ -293,23 +306,28 @@ export const VoiceCallView: React.FC<VoiceCallViewProps> = ({
       id="voice-call-screen"
       className="fixed inset-0 z-50 bg-[#0a0a0b] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#1a1405] via-[#0a0a0b] to-[#0a0a0b] text-[#e2e2e7] flex flex-col justify-between overflow-hidden select-none"
     >
-      {/* Top Header: Call details and timer */}
+      {/* Top Header: Connection Status & Call Timer */}
       <div className="pt-6 px-6 flex items-center justify-between z-10">
-        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#1c1c21] border border-[#27272a]">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[#d4af37]">
-            Encrypted Call
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#1c1c21] border border-[#27272a] shadow-sm">
+          <span
+            className={`w-2 h-2 rounded-full ${
+              callPhase === 'calling' ? 'bg-amber-400 animate-ping' : 'bg-emerald-500 animate-pulse'
+            }`}
+          ></span>
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-[#d4af37]">
+            {callPhase === 'calling' ? 'Naima is calling...' : 'Gemini Live Connected'}
           </span>
         </div>
 
-        {/* Live Call Timer */}
+        {/* Live Call Duration */}
         <div
           id="call-timer"
-          className="px-4 py-1 rounded-full bg-[#1c1c21] border border-[#27272a] text-sm font-mono font-medium text-[#d4af37] shadow-sm"
+          className="px-4 py-1.5 rounded-full bg-[#1c1c21] border border-[#27272a] text-sm font-mono font-medium text-[#d4af37] shadow-sm"
         >
           {formatTimer(callDuration)}
         </div>
 
+        {/* Keyboard toggle for noisy environments */}
         <button
           id="call-toggle-text-btn"
           onClick={() => setShowTextInput(!showTextInput)}
@@ -326,21 +344,25 @@ export const VoiceCallView: React.FC<VoiceCallViewProps> = ({
         {!hasGeminiKey && (
           <div className="mb-4 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span>GEMINI_API_KEY is not set in Secrets. Add it to enable Gemini Live AI.</span>
+            <span>GEMINI_API_KEY is not set in Secrets. Voice call requires a key.</span>
           </div>
         )}
 
-        {/* Outer concentric pulsing rings based on callPhase */}
+        {/* Outer concentric pulsing acoustic rings */}
         <div className="relative flex items-center justify-center">
           {callPhase === 'speaking' && (
             <>
-              <div className="absolute w-80 h-80 rounded-full border border-[#d4af37]/30 bg-[#d4af37]/5 animate-ping [animation-duration:3s]"></div>
-              <div className="absolute w-64 h-64 rounded-full border border-[#d4af37]/40 bg-[#d4af37]/10 animate-pulse"></div>
+              <div className="absolute w-84 h-84 rounded-full border border-[#d4af37]/30 bg-[#d4af37]/5 animate-ping [animation-duration:3s]"></div>
+              <div className="absolute w-68 h-68 rounded-full border border-[#d4af37]/40 bg-[#d4af37]/10 animate-pulse"></div>
             </>
           )}
 
           {callPhase === 'listening' && (
-            <div className="absolute w-68 h-68 rounded-full border-2 border-emerald-500/30 bg-emerald-500/5 animate-pulse"></div>
+            <div className="absolute w-72 h-72 rounded-full border-2 border-emerald-500/30 bg-emerald-500/5 animate-pulse"></div>
+          )}
+
+          {callPhase === 'calling' && (
+            <div className="absolute w-68 h-68 rounded-full border border-amber-500/30 animate-ping [animation-duration:2s]"></div>
           )}
 
           {/* Naima Profile Photo */}
@@ -357,7 +379,7 @@ export const VoiceCallView: React.FC<VoiceCallViewProps> = ({
               }`}
             />
 
-            {/* Speaking audio wave animation badge */}
+            {/* Speaking audio wave badge */}
             {callPhase === 'speaking' && (
               <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-[#d4af37] text-[#0a0a0b] text-xs font-bold flex items-center gap-1.5 shadow-[0_0_15px_rgba(212,175,55,0.4)]">
                 <span className="w-1.5 h-3 bg-[#0a0a0b] voice-bar-1 rounded-full"></span>
@@ -367,51 +389,71 @@ export const VoiceCallView: React.FC<VoiceCallViewProps> = ({
               </div>
             )}
 
+            {/* Listening microphone badge */}
             {callPhase === 'listening' && (
               <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-emerald-600 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg">
                 <Mic className="w-3.5 h-3.5 animate-pulse" />
                 <span>Listening</span>
               </div>
             )}
+
+            {/* Calling badge */}
+            {callPhase === 'calling' && (
+              <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-amber-500 text-black text-xs font-bold flex items-center gap-1.5 shadow-lg">
+                <Radio className="w-3.5 h-3.5 animate-spin" />
+                <span>Calling...</span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Caller Info */}
+        {/* Caller Title & Female Voice Info */}
         <div className="mt-8 text-center space-y-1">
           <h2 className="text-3xl font-serif italic tracking-widest text-[#d4af37] flex items-center justify-center gap-2">
             <span>NAIMA</span>
             <Heart className="w-4 h-4 fill-[#d4af37] text-[#d4af37]" />
           </h2>
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#71717a] font-medium">
-            Personal AI Companion · Dhaka
-          </p>
+          <div className="flex items-center justify-center gap-2 text-xs text-[#71717a]">
+            <span>Adult AI Girlfriend · 22</span>
+            <span>•</span>
+            <span className="text-[#d4af37]/80">Voice: {settings.voice || 'Aoede'} (Natural Female)</span>
+          </div>
         </div>
 
-        {/* Live Subtitle Area */}
+        {/* Live Subtitle and Speech Area */}
         <div
           id="call-subtitles"
-          className="mt-6 max-w-lg w-full px-5 py-4 rounded-2xl bg-[#1c1c21] border border-[#27272a] text-center min-h-[76px] flex items-center justify-center shadow-xl"
+          className="mt-6 max-w-lg w-full px-5 py-4 rounded-2xl bg-[#1c1c21] border border-[#27272a] text-center min-h-[82px] flex flex-col items-center justify-center shadow-xl"
         >
           {isProcessingTurn ? (
             <div className="flex items-center gap-2 text-[#d4af37] text-sm font-serif italic">
               <RefreshCw className="w-4 h-4 animate-spin" />
-              <span>Naima is replying with love...</span>
+              <span>Naima is replying...</span>
             </div>
           ) : (
             <p className="text-sm sm:text-base font-serif italic text-[#f3e3ad] leading-relaxed">
               &ldquo;{currentSubtitle}&rdquo;
             </p>
           )}
+
+          {/* Language detected tag */}
+          {detectedLang && callPhase === 'speaking' && (
+            <div className="mt-2 flex items-center gap-1.5 text-[10px] text-[#a1a1aa] bg-[#0a0a0b]/60 px-2.5 py-0.5 rounded-full border border-[#27272a]">
+              <Globe className="w-3 h-3 text-[#d4af37]" />
+              <span>Language: {detectedLang}</span>
+            </div>
+          )}
         </div>
 
-        {/* Last user speech preview */}
-        {lastUserSpeech && (
-          <p className="mt-2 text-xs text-[#71717a] font-mono italic">
-            You: &ldquo;{lastUserSpeech}&rdquo;
+        {/* Live Hands-Free Transcript Preview */}
+        {callPhase === 'listening' && (
+          <p className="mt-2 text-xs text-emerald-400/90 font-mono tracking-wide flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            Speak normally in any language — Naima will automatically reply
           </p>
         )}
 
-        {/* In-Call Text Input Drawer (if open or mic denied) */}
+        {/* In-Call Text Input Drawer */}
         {showTextInput && (
           <form
             onSubmit={handleSendManual}
@@ -440,13 +482,14 @@ export const VoiceCallView: React.FC<VoiceCallViewProps> = ({
         id="call-controls"
         className="pb-10 pt-4 px-6 max-w-md mx-auto w-full flex items-center justify-around z-20"
       >
-        {/* 1. MUTE BUTTON */}
+        {/* 1. 🎙️ MICROPHONE BUTTON */}
         <button
           id="call-mute-btn"
           onClick={toggleMute}
           className={`flex flex-col items-center gap-1.5 group cursor-pointer transition-all ${
             isMicMuted ? 'text-[#d4af37]' : 'text-[#a1a1aa] hover:text-white'
           }`}
+          title={isMicMuted ? 'Unmute microphone' : 'Mute microphone'}
         >
           <div
             className={`w-14 h-14 rounded-full flex items-center justify-center border transition-all ${
@@ -460,11 +503,12 @@ export const VoiceCallView: React.FC<VoiceCallViewProps> = ({
           <span className="text-[11px] font-medium tracking-wide">{isMicMuted ? 'Unmute' : 'Mute'}</span>
         </button>
 
-        {/* 2. BIG END CALL BUTTON */}
+        {/* 2. 📞 END CALL BUTTON */}
         <button
           id="call-end-btn"
           onClick={onEndCall}
           className="flex flex-col items-center gap-1.5 group cursor-pointer"
+          title="End voice call and return to chat"
         >
           <div className="w-18 h-18 rounded-full bg-red-600 hover:bg-red-700 active:scale-95 text-white flex items-center justify-center shadow-[0_0_30px_rgba(220,38,38,0.4)] transition-all">
             <PhoneOff className="w-8 h-8" />
@@ -472,13 +516,14 @@ export const VoiceCallView: React.FC<VoiceCallViewProps> = ({
           <span className="text-xs font-semibold text-red-400">End Call</span>
         </button>
 
-        {/* 3. SPEAKER BUTTON */}
+        {/* 3. 🔊 SPEAKER BUTTON */}
         <button
           id="call-speaker-btn"
           onClick={toggleSpeaker}
           className={`flex flex-col items-center gap-1.5 group cursor-pointer transition-all ${
             isSpeakerMuted ? 'text-[#d4af37]' : 'text-[#a1a1aa] hover:text-white'
           }`}
+          title={isSpeakerMuted ? 'Turn speaker on' : 'Turn speaker off'}
         >
           <div
             className={`w-14 h-14 rounded-full flex items-center justify-center border transition-all ${
@@ -495,3 +540,4 @@ export const VoiceCallView: React.FC<VoiceCallViewProps> = ({
     </div>
   );
 };
+

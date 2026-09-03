@@ -106,6 +106,7 @@ export function speakWithBrowser(
   text: string,
   options?: {
     isSpeakerMuted?: boolean;
+    langCode?: string;
     onEnded?: () => void;
   }
 ): void {
@@ -125,19 +126,34 @@ export function speakWithBrowser(
   const clean = text.replace(/[\*#_~`]/g, '').replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '');
 
   const utterance = new SpeechSynthesisUtterance(clean);
-  utterance.pitch = 1.15; // Slightly sweet pitch for girlfriend persona
+  utterance.pitch = 1.1; // Gentle sweet pitch for adult girlfriend persona
   utterance.rate = 1.0;
 
-  // Try to find a female voice
+  if (options?.langCode) {
+    utterance.lang = options.langCode;
+  }
+
+  // Find most natural female voice for the language or general
   const voices = window.speechSynthesis.getVoices();
-  const femaleVoice = voices.find(
+  const targetLang = options?.langCode?.toLowerCase().slice(0, 2);
+
+  let femaleVoice = voices.find(
     (v) =>
+      (!targetLang || v.lang.toLowerCase().startsWith(targetLang)) &&
       (v.name.toLowerCase().includes('female') ||
         v.name.toLowerCase().includes('natural') ||
         v.name.toLowerCase().includes('samantha') ||
+        v.name.toLowerCase().includes('karen') ||
+        v.name.toLowerCase().includes('victoria') ||
+        v.name.toLowerCase().includes('google') ||
         v.name.toLowerCase().includes('zira')) &&
       !v.name.toLowerCase().includes('male')
   );
+
+  if (!femaleVoice && targetLang) {
+    femaleVoice = voices.find((v) => v.lang.toLowerCase().startsWith(targetLang));
+  }
+
   if (femaleVoice) {
     utterance.voice = femaleVoice;
   }

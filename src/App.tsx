@@ -10,9 +10,9 @@ import { playGeminiPCM, speakWithBrowser } from './utils/audio';
 const DEFAULT_SETTINGS: UserSettings = {
   nickname: 'Jaan',
   userName: 'Sweetheart',
-  languagePreference: 'all',
+  languagePreference: 'auto',
   tone: 'romantic',
-  voice: 'Kore',
+  voice: 'Aoede',
   theme: 'dark',
   autoVoicePlayback: false,
 };
@@ -177,10 +177,10 @@ export default function App() {
     setCurrentTab('call');
   };
 
-  // End Call Handler
+  // End Call Handler - returns to chat screen as required
   const handleEndCall = () => {
     setIsCallActive(false);
-    setCurrentTab('home');
+    setCurrentTab('chat');
   };
 
   // Clear chat history

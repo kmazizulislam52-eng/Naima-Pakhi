@@ -259,12 +259,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       : 'text-[#71717a]'
                   }`}
                 >
-                  <span>
-                    {new Date(msg.timestamp).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span>
+                      {new Date(msg.timestamp).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                    {!isUser && msg.detectedLanguage && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#0a0a0b]/40 border border-[#27272a] text-[#d4af37]/90 font-mono">
+                        {msg.detectedLanguage}
+                      </span>
+                    )}
+                  </div>
 
                   {!isUser && (
                     <button
@@ -374,8 +381,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
             onChange={(e) => setInputText(e.target.value)}
             placeholder={
               isRecording
-                ? 'Listening to you... (Bangla or English)'
-                : `Message Naima in Bangla, Banglish or English...`
+                ? 'Listening to you... Speak in any language'
+                : 'Message Naima in any language (Bangla বাংলা, English, etc.)...'
             }
             className={`flex-1 px-4 py-2.5 rounded-full text-sm outline-none border transition-colors ${
               theme === 'dark'

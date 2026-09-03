@@ -182,33 +182,34 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           theme === 'dark' ? 'bg-[#0f0f12] border-[#27272a]' : 'bg-white border-neutral-200'
         }`}
       >
-        <div className="flex items-center gap-2">
-          <Globe className={`w-5 h-5 ${theme === 'dark' ? 'text-[#d4af37]' : 'text-rose-500'}`} />
-          <h2 className="font-semibold text-sm">Language & Dialect</h2>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Globe className={`w-5 h-5 ${theme === 'dark' ? 'text-[#d4af37]' : 'text-rose-500'}`} />
+            <h2 className="font-semibold text-sm">Language & Script</h2>
+          </div>
+          <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-[#1c1c21] border border-[#27272a] text-[#d4af37]">
+            Gemini Multilingual
+          </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <p className="text-xs text-[#71717a]">
+          Naima understands and responds in whichever language you write or speak, preserving her sweet Dhaka personality.
+        </p>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {[
-            {
-              id: 'all',
-              label: 'Natural Mix (স্বাভাবিক মিশ্রণ)',
-              desc: 'Matches whichever language you speak',
-            },
-            {
-              id: 'bangla',
-              label: 'Bangla Only (বাংলা)',
-              desc: 'Pure sweet conversational Bengali script',
-            },
-            {
-              id: 'banglish',
-              label: 'Banglish (বাংলিশ)',
-              desc: 'Bangla written in English alphabet (kemon acho jaan)',
-            },
-            {
-              id: 'english',
-              label: 'English with Pet Names',
-              desc: 'Loving English with terms like jaan, babu',
-            },
+            { id: 'auto', label: 'Auto-Detect (স্বয়ংক্রিয়)', desc: 'Matches any language you type or speak' },
+            { id: 'bangla', label: 'Bangla (বাংলা)', desc: 'Dhaka conversational Bengali' },
+            { id: 'banglish', label: 'Banglish (বাংলিশ)', desc: 'kemon acho jaan romanized' },
+            { id: 'english', label: 'English', desc: 'Loving English with pet names' },
+            { id: 'hindi', label: 'Hindi (हिन्दी)', desc: 'Sweet Hindustani conversation' },
+            { id: 'urdu', label: 'Urdu (اردو)', desc: 'Affectionate Urdu phrasing' },
+            { id: 'arabic', label: 'Arabic (العربية)', desc: 'Natural Arabic conversation' },
+            { id: 'spanish', label: 'Spanish (Español)', desc: 'Romantic conversational Spanish' },
+            { id: 'french', label: 'French (Français)', desc: 'Gentle French conversation' },
+            { id: 'chinese', label: 'Chinese (中文)', desc: 'Standard Chinese conversational' },
+            { id: 'japanese', label: 'Japanese (日本語)', desc: 'Gentle Japanese phrasing' },
+            { id: 'korean', label: 'Korean (한국어)', desc: 'Affectionate Korean honorifics' },
           ].map((item) => (
             <button
               key={item.id}
@@ -225,32 +226,46 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               }`}
             >
               <div className="text-xs font-semibold">{item.label}</div>
-              <div className="text-[10px] text-[#71717a] mt-0.5">{item.desc}</div>
+              <div className="text-[10px] text-[#71717a] mt-0.5 leading-snug">{item.desc}</div>
             </button>
           ))}
         </div>
       </div>
 
-      {/* 4. Voice Model Selection */}
+      {/* 4. Gemini Female Voice Selection */}
       <div
         id="settings-voice"
         className={`p-5 rounded-3xl border space-y-4 transition-colors ${
           theme === 'dark' ? 'bg-[#0f0f12] border-[#27272a]' : 'bg-white border-neutral-200'
         }`}
       >
-        <div className="flex items-center gap-2">
-          <Volume2 className={`w-5 h-5 ${theme === 'dark' ? 'text-[#d4af37]' : 'text-rose-500'}`} />
-          <h2 className="font-semibold text-sm">Gemini AI Voice Persona</h2>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Volume2 className={`w-5 h-5 ${theme === 'dark' ? 'text-[#d4af37]' : 'text-rose-500'}`} />
+            <h2 className="font-semibold text-sm">Gemini Female Voice Selection</h2>
+          </div>
+          <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-[#1c1c21] border border-[#27272a] text-[#d4af37]">
+            Real Gemini Audio
+          </span>
         </div>
 
+        <p className="text-xs text-[#71717a]">
+          Select Naima&apos;s adult female speaking voice. All options use Gemini&apos;s authentic real-time voice synthesis.
+        </p>
+
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {(['Kore', 'Aoede', 'Zephyr', 'Puck'] as VoiceName[]).map((voice) => (
+          {[
+            { id: 'Aoede', name: 'Aoede', vibe: 'Breezy & Sweet', desc: 'Warm, melodic & confident' },
+            { id: 'Kore', name: 'Kore', vibe: 'Soft & Relaxed', desc: 'Gentle, soothing & intimate' },
+            { id: 'Leda', name: 'Leda', vibe: 'Bright & Youthful', desc: 'Affectionate & playful' },
+            { id: 'Callirrhoe', name: 'Callirrhoe', vibe: 'Melodic & Deep', desc: 'Warm, caring & romantic' },
+          ].map((voice) => (
             <button
-              key={voice}
-              id={`voice-${voice}`}
-              onClick={() => onUpdateSettings({ voice })}
-              className={`p-3 rounded-2xl border text-center transition-all cursor-pointer ${
-                settings.voice === voice
+              key={voice.id}
+              id={`voice-${voice.id}`}
+              onClick={() => onUpdateSettings({ voice: voice.id as VoiceName })}
+              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                settings.voice === voice.id
                   ? theme === 'dark'
                     ? 'border-[#d4af37] bg-[#d4af37]/15 text-[#d4af37] font-semibold shadow-[0_0_10px_rgba(212,175,55,0.15)]'
                     : 'border-rose-500 bg-rose-500/10 text-rose-500 font-semibold'
@@ -259,16 +274,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   : 'border-neutral-200 bg-neutral-50 text-neutral-700'
               }`}
             >
-              <div className="text-xs font-semibold">{voice}</div>
-              <div className="text-[10px] text-[#71717a] mt-0.5">
-                {voice === 'Kore'
-                  ? 'Soft & Warm'
-                  : voice === 'Aoede'
-                  ? 'Sweet'
-                  : voice === 'Zephyr'
-                  ? 'Gentle'
-                  : 'Lively'}
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold">{voice.name}</span>
+                <Sparkles className="w-3 h-3 opacity-60" />
               </div>
+              <div className="text-[11px] font-medium text-[#d4af37] mt-0.5">{voice.vibe}</div>
+              <div className="text-[10px] text-[#71717a] mt-1 leading-snug">{voice.desc}</div>
             </button>
           ))}
         </div>

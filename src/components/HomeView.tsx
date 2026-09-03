@@ -190,7 +190,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <div className="text-left">
                 <div className="text-base font-bold leading-tight">Call Naima Now</div>
                 <div className={`text-[11px] font-normal ${theme === 'dark' ? 'text-[#0a0a0b]/80' : 'text-rose-100'}`}>
-                  Live Voice Call · Talk & Listen in Bangla or English
+                  Live Voice Call · Talk & Listen naturally in any language
                 </div>
               </div>
             </button>
@@ -206,7 +206,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               }`}
             >
               <MessageCircleHeart className={`w-5 h-5 ${theme === 'dark' ? 'text-[#d4af37]' : 'text-rose-500'}`} />
-              <span>Chat with Naima (Bangla, Banglish & English)</span>
+              <span>Chat with Naima (Bangla, English & Any Language)</span>
             </button>
           </div>
         </div>
