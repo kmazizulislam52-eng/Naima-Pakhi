@@ -1,0 +1,10 @@
+{
+  "name": "Naima - AI Girlfriend",
+  "description": "Romantic AI girlfriend from Bangladesh with real-time Gemini chat and live voice calling in Bangla, Banglish, and English.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
